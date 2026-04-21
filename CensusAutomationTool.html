@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Census Automation Tool</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.3.0/dist/exceljs.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{--navy:#1a2744;--blue:#2b4fa8;--sky:#4a8fe8;--gold:#e8a020;--success:#2e7d4f;--danger:#c0392b;--bg:#f0f3f9;--surface:#ffffff;--border:#d0d8ec;--text:#1a2744;--muted:#6b7a9e;--radius:10px}
+  body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+  .header{background:var(--navy);padding:20px 40px;display:flex;align-items:center;gap:16px;border-bottom:3px solid var(--gold)}
+  .header-logo{width:40px;height:40px;background:var(--gold);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;color:var(--navy)}
+  .header h1{font-size:20px;font-weight:600;color:#fff}
+  .header p{font-size:13px;color:#8fa3cc;margin-top:2px}
+  .header-badge{margin-left:auto;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:#8fa3cc;font-size:11px;padding:4px 10px;border-radius:20px;font-family:'DM Mono',monospace}
+  .container{max-width:900px;margin:0 auto;padding:32px 24px}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-bottom:20px}
+  .card-title{font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.8px;color:var(--muted);margin-bottom:16px;display:flex;align-items:center;gap:8px}
+  .card-title::before{content:'';display:inline-block;width:3px;height:14px;background:var(--gold);border-radius:2px}
+  .info-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .info-grid .full{grid-column:1/-1}
+  .field label{display:block;font-size:12px;font-weight:500;color:var(--muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px}
+  .field input{width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:7px;font-size:14px;font-family:'DM Sans',sans-serif;color:var(--text);background:#fafbff;outline:none;transition:border-color 0.15s}
+  .field input:focus{border-color:var(--sky);box-shadow:0 0 0 3px rgba(74,143,232,0.12);background:#fff}
+  .drop-zone{border:2px dashed var(--border);border-radius:var(--radius);padding:40px 20px;text-align:center;cursor:pointer;transition:all 0.2s;background:#fafbff}
+  .drop-zone:hover,.drop-zone.over{border-color:var(--sky);background:#eef4fd}
+  .drop-zone.has-file{border-color:var(--success);background:#f0faf4}
+  .drop-icon{font-size:36px;margin-bottom:10px;display:block}
+  .drop-title{font-size:15px;font-weight:500;margin-bottom:4px}
+  .drop-sub{font-size:13px;color:var(--muted)}
+  #fileInput{display:none}
+  .run-btn{width:100%;padding:14px;background:var(--navy);color:#fff;border:none;border-radius:var(--radius);font-size:15px;font-weight:600;font-family:'DM Sans',sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:20px;transition:all 0.15s}
+  .run-btn:hover:not(:disabled){background:var(--blue);transform:translateY(-1px)}
+  .run-btn:disabled{opacity:0.5;cursor:not-allowed}
+  .progress-card{display:none}.progress-card.visible{display:block}
+  .step{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #f0f3f9;font-size:14px}
+  .step:last-child{border-bottom:none}
+  .step-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;background:var(--border);transition:background 0.3s}
+  .step-dot.done{background:var(--success)}.step-dot.running{background:var(--sky);animation:pulse 1s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
+  .step-label{flex:1}.step-label.muted{color:var(--muted)}
+  .step-count{font-family:'DM Mono',monospace;font-size:12px;color:var(--muted);background:var(--bg);padding:2px 8px;border-radius:10px}
+  .summary-card{display:none}.summary-card.visible{display:block}
+  .summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+  .stat{background:var(--bg);border-radius:8px;padding:14px;text-align:center}
+  .stat-label{font-size:11px;text-transform:uppercase;letter-spacing:0.6px;color:var(--muted);margin-bottom:6px}
+  .stat-value{font-size:26px;font-weight:600;color:var(--navy);font-family:'DM Mono',monospace}
+  .download-btn{width:100%;padding:14px;background:var(--success);color:#fff;border:none;border-radius:var(--radius);font-size:15px;font-weight:600;font-family:'DM Sans',sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;transition:all 0.15s}
+  .download-btn:hover{background:#256940;transform:translateY(-1px)}
+  .sheet-list{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+  .sheet-badge{font-size:12px;padding:4px 12px;border-radius:20px;font-weight:500;border:1.5px solid}
+  .badge-blue{color:#1a4fa8;border-color:#a0bbee;background:#eef3fd}
+  .badge-green{color:#1e6b3a;border-color:#a0d4b4;background:#edfaf2}
+  .badge-purple{color:#5b2fa0;border-color:#c0a0e8;background:#f4effe}
+  .badge-gold{color:#7a4a00;border-color:#e8c870;background:#fdf5e0}
+  .badge-teal{color:#0e5c6a;border-color:#80ccd4;background:#e8f8fa}
+  .instructions{background:#eef3fd;border-left:3px solid var(--sky);border-radius:0 8px 8px 0;padding:14px 16px;font-size:13px;color:var(--muted);line-height:1.7}
+  .instructions strong{color:var(--text)}
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="header-logo">C</div>
+  <div><h1>Census Automation Tool</h1><p>Transform Employee Navigator exports into carrier-ready census files</p></div>
+  <div class="header-badge">v4.0 · Fully formatted output</div>
+</div>
+<div class="container">
+  <div class="card">
+    <div class="card-title">How it works</div>
+    <div class="instructions">
+      <strong>Step 1:</strong> Fill in the company info below.<br>
+      <strong>Step 2:</strong> Drop the Employee Navigator .xlsx export in the upload area.<br>
+      <strong>Step 3:</strong> Click Generate — all 5 carrier sheets build with full colors and formatting.<br>
+      <strong>Step 4:</strong> Download and save with the client name.
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Company Information</div>
+    <div class="info-grid">
+      <div class="field full"><label>Company / DBA Name *</label><input type="text" id="coName" placeholder="e.g. Hardee &amp; Associates dba Crown and Company"></div>
+      <div class="field full"><label>Company Address</label><input type="text" id="coAddr" placeholder="e.g. 107 Hampton Rd Suite 150 Clearwater, FL 33759"></div>
+      <div class="field"><label>EIN</label><input type="text" id="coEIN" placeholder="xx-xxxxxxx"></div>
+      <div class="field"><label>SIC Code</label><input type="text" id="coSIC" placeholder="e.g. 8721"></div>
+      <div class="field"><label>Effective Date of Coverage</label><input type="text" id="coEff" placeholder="MM/DD/YYYY"></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Employee Navigator Export</div>
+    <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+      <span class="drop-icon" id="dropIcon">📂</span>
+      <div class="drop-title" id="dropTitle">Drop your Employee Navigator .xlsx here</div>
+      <div class="drop-sub" id="dropSub">or click to browse</div>
+      <input type="file" id="fileInput" accept=".xlsx">
+    </div>
+  </div>
+  <button class="run-btn" id="runBtn" onclick="runCensus()" disabled><span>⚡</span> Generate All Census Sheets</button>
+  <div class="card progress-card" id="progressCard">
+    <div class="card-title">Processing</div>
+    <div id="stepList"></div>
+  </div>
+  <div class="card summary-card" id="summaryCard">
+    <div class="card-title">Complete</div>
+    <div class="summary-grid" id="summaryGrid"></div>
+    <button class="download-btn" onclick="downloadOutput()">⬇ Download Census File</button>
+    <div class="sheet-list">
+      <span class="sheet-badge badge-blue">ERBG RH (UHC &amp; FB FI)</span>
+      <span class="sheet-badge badge-green">Angle Health RFP</span>
+      <span class="sheet-badge badge-purple">Aetna Health RFP</span>
+      <span class="sheet-badge badge-gold">UHC LF RFP</span>
+      <span class="sheet-badge badge-teal">AI Analytic Census</span>
+    </div>
+  </div>
+</div>
+<script>
+let uploadedFile=null,outputBuffer=null;
+const dropZone=document.getElementById('dropZone');
+const fileInput=document.getElementById('fileInput');
+dropZone.addEventListener('dragover',e=>{e.preventDefault();dropZone.classList.add('over');});
+dropZone.addEventListener('dragleave',()=>dropZone.classList.remove('over'));
+dropZone.addEventListener('drop',e=>{e.preventDefault();dropZone.classList.remove('over');if(e.dataTransfer.files[0])setFile(e.dataTransfer.files[0]);});
+fileInput.addEventListener('change',e=>{if(e.target.files[0])setFile(e.target.files[0]);});
+document.getElementById('coName').addEventListener('input',checkReady);
+function setFile(f){uploadedFile=f;document.getElementById('dropIcon').textContent='✅';document.getElementById('dropTitle').textContent='Loaded: '+f.name;document.getElementById('dropSub').style.display='none';dropZone.classList.add('has-file');checkReady();}
+function checkReady(){document.getElementById('runBtn').disabled=!(uploadedFile&&document.getElementById('coName').value.trim());}
+function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+const STEPS=[{id:'read',label:'Reading Employee Navigator data'},{id:'erbg',label:'Building ERBG RH (UHC & FB FI)'},{id:'angle',label:'Building Angle Health RFP'},{id:'aetna',label:'Building Aetna Health RFP'},{id:'uhc',label:'Building UHC LF RFP'},{id:'ai',label:'Building AI Analytic Census'},{id:'write',label:'Saving formatted workbook'}];
+function buildSteps(){document.getElementById('stepList').innerHTML=STEPS.map(s=>`<div class="step"><div class="step-dot" id="dot_${s.id}"></div><div class="step-label muted" id="lbl_${s.id}">${s.label}</div><div class="step-count" id="cnt_${s.id}" style="display:none"></div></div>`).join('');}
+function setStep(id,state,count){document.getElementById('dot_'+id).className='step-dot '+state;document.getElementById('lbl_'+id).className='step-label'+(state==='done'?'':' muted');if(count!==undefined){const c=document.getElementById('cnt_'+id);c.textContent=count;c.style.display='block';}}
+
+// Helpers
+function ss(v){return(v==null||v==='')? '':String(v).trim();}
+function fmtDate(v){if(v==null||v==='')return '';if(v instanceof Date){return`${String(v.getMonth()+1).padStart(2,'0')}/${String(v.getDate()).padStart(2,'0')}/${v.getFullYear()}`;}const n=Number(v);if(!isNaN(n)&&n>1000){const d=new Date(Math.round((n-25569)*86400*1000));return`${String(d.getUTCMonth()+1).padStart(2,'0')}/${String(d.getUTCDate()).padStart(2,'0')}/${d.getUTCFullYear()}`;}return ss(v);}
+function cleanZip(v){let s=ss(v);if(s.includes('-'))s=s.split('-')[0];return s.trim().slice(0,5);}
+function gFull(v){return ss(v).toUpperCase()==='M'?'Male':'Female';}
+function covERBG(plan,cov,dec){const p=ss(plan),c=ss(cov),d=ss(dec);if(d&&!p&&!c)return 'W';const src=c||p;if(!src)return 'W';if(src.includes('Employee + Spouse'))return 'ES';if(src.includes('Employee + Child'))return 'EC';if(src.includes('Family'))return 'EF';if(src.includes('Employee Only')||src==='Employee'||src==='EE')return 'EE';return 'W';}
+function covAetna(plan,cov,dec){const p=ss(plan),c=ss(cov),d=ss(dec);if((d&&!p)||(!p&&!c))return 'Waive';const src=c||p;if(src.includes('Employee + Spouse'))return 'EESpOnly';if(src.includes('Employee + Child'))return 'EEChren';if(src.includes('Family'))return 'EEFamily';if(src.includes('Employee Only')||src==='Employee')return 'EEOnly';return 'Waive';}
+function covUHCMed(plan,cov,dec){const p=ss(plan),c=ss(cov),d=ss(dec);if((d&&!p)||(!p&&!c))return['Waive',d];const src=c||p;if(src.includes('Employee + Spouse'))return['Employee & Spouse',''];if(src.includes('Employee + Child'))return['Employee & Child',''];if(src.includes('Family'))return['Employee & Family',''];if(src.includes('Employee Only')||src==='Employee')return['Employee',''];return['Waive',d];}
+function covUHCDen(plan,cov,dec){const p=ss(plan),c=ss(cov),d=ss(dec);if((d&&!p)||(!p&&!c))return 'Waive';const src=c||p;if(src.includes('Employee + Spouse'))return 'Employee & Spouse';if(src.includes('Employee + Child'))return 'Employee & Child';if(src.includes('Family'))return 'Employee & Family';if(src.includes('Employee Only')||src==='Employee')return 'Employee Only';return 'Waive';}
+function aiTier(cov){const c=ss(cov);if(c.includes('Employee + Spouse'))return 'ES';if(c.includes('Employee + Child'))return 'EC';if(c.includes('Family'))return 'Fam';return 'EE';}
+function angleTier(src){if(src.includes('Employee + Spouse'))return 'Employee + Spouse';if(src.includes('Employee + Child'))return 'Employee + Child(ren)';if(src.includes('Family'))return 'Employee + Family';return 'Employee';}
+
+// ExcelJS style helpers
+function fillS(argb){return{type:'pattern',pattern:'solid',fgColor:{argb}};}
+function fnt(bold,color,size){return{name:'Arial',bold:!!bold,color:{argb:color||'FF000000'},size:size||10};}
+function aln(h,v,wrap){return{horizontal:h||'left',vertical:v||'middle',wrapText:!!wrap};}
+function bdr(c){const s={style:'thin',color:{argb:c||'FFAAAAAA'}};return{top:s,bottom:s,left:s,right:s};}
+function sc(cell,val,bold,bg,fc,ha,wrap,sz){
+  if(val!==undefined)cell.value=val;
+  cell.font=fnt(bold,fc||'FF000000',sz||10);
+  if(bg)cell.fill=fillS(bg);
+  cell.alignment=aln(ha||'left','middle',wrap||false);
+  cell.border=bdr();
+}
+
+const DARK='FF1F3864',MID='FF2E5FAC',HDR='FF4472C4',LBLU='FFBDD7EE';
+const WHITE='FFFFFFFF',LGRAY='FFF2F2F2',YEL='FFFFF2CC',SALM='FFFCE4D6';
+const PURP='FF7030A0',LPURP='FFEAE0F5',RED='FFC00000';
+
+async function runCensus(){
+  const coName=document.getElementById('coName').value.trim();
+  const coAddr=document.getElementById('coAddr').value.trim();
+  const coEIN=document.getElementById('coEIN').value.trim();
+  const coSIC=document.getElementById('coSIC').value.trim();
+  const coEff=document.getElementById('coEff').value.trim();
+  document.getElementById('runBtn').disabled=true;
+  document.getElementById('progressCard').classList.add('visible');
+  document.getElementById('summaryCard').classList.remove('visible');
+  buildSteps();await sleep(50);
+
+  setStep('read','running');await sleep(30);
+  const data=await uploadedFile.arrayBuffer();
+  const srcWb=XLSX.read(data,{type:'array',cellDates:false});
+  let rawSheet=null;
+  for(const name of srcWb.SheetNames){const sh=srcWb.Sheets[name];const a1=sh['A1'];if(a1&&ss(a1.v).toLowerCase().includes('relationship')){rawSheet=sh;break;}}
+  if(!rawSheet)rawSheet=srcWb.Sheets[srcWb.SheetNames[0]];
+  const rows=XLSX.utils.sheet_to_json(rawSheet,{defval:'',header:1});
+  let headerRow=0;
+  for(let i=0;i<Math.min(rows.length,15);i++){if(ss(rows[i][0]).toLowerCase().includes('relationship')){headerRow=i;break;}}
+  const hdr=rows[headerRow];
+  const col={};
+  hdr.forEach((h,i)=>{col[ss(h).toLowerCase().replace(/[^a-z0-9]/g,'')]=i;});
+  const members=rows.slice(headerRow+1).filter(r=>ss(r[0])!=='');
+  let fid=0;members.forEach(r=>{if(ss(r[col['relationship']??0]).trim()==='Employee')fid++;r._fid=fid;});
+  const empCount=members.filter(r=>ss(r[col['relationship']??0]).trim()==='Employee').length;
+  const depCount=members.filter(r=>{const rel=ss(r[col['relationship']??0]).trim();return rel==='Spouse'||rel==='Child'||rel==='Dependent';}).length;
+  setStep('read','done',`${members.length} members`);await sleep(30);
+
+  const wb=new ExcelJS.Workbook();wb.creator='Census Tool';
+
+  // ERBG RH
+  setStep('erbg','running');await sleep(30);
+  const wsE=wb.addWorksheet('ERBG RH (UHC & FB FI)');
+  wsE.views=[{state:'frozen',ySplit:1}];
+  [6,12,16,14,5,13,6,6,6,6,9,9,22,12,7,7].forEach((w,i)=>wsE.getColumn(i+1).width=w);
+  wsE.getColumn(23).width=30;wsE.getColumn(24).width=34;[25,26,27].forEach(c=>wsE.getColumn(c).width=7);
+  wsE.getRow(1).height=22;
+  ['Index','Type','Last Name','First Name','Gen','DOB','Med','Den','Vis','Lf','HmZip','WkZip','Occupation','Salary','COBRA','Tob'].forEach((label,i)=>sc(wsE.getCell(1,i+1),label,true,HDR,WHITE,'center',true));
+  [[1,'Company Name',coName],[2,'Company Address',coAddr],[3,'Company Tax ID #',coEIN],[4,'Effective Date of Coverage',coEff],[5,'SIC Code',coSIC]].forEach(([row,label,val])=>{wsE.getRow(row).height=18;sc(wsE.getCell(row,23),label,true,DARK,WHITE,'left');sc(wsE.getCell(row,24),val,false,YEL,'FF000080','left');});
+  [6,7,8].forEach(r=>wsE.getRow(r).height=18);
+  wsE.mergeCells(6,23,8,23);sc(wsE.getCell(6,23),'Average total number of employees for the previous calendar year (ATNE)',true,DARK,WHITE,'left',true);
+  wsE.mergeCells(6,24,8,24);sc(wsE.getCell(6,24),'Need manual input from EN',false,SALM,'FF000000','center',true);
+  [9,10].forEach(r=>wsE.getRow(r).height=18);
+  sc(wsE.getCell(9,23),'Total Employees',true,DARK,WHITE,'left');sc(wsE.getCell(9,24),empCount,true,LGRAY,'FF000000','center');
+  sc(wsE.getCell(10,23),'Total Dependents',true,DARK,WHITE,'left');sc(wsE.getCell(10,24),depCount,true,LGRAY,'FF000000','center');
+  wsE.getRow(11).height=16;sc(wsE.getCell(11,23),null,false,DARK,WHITE,'center');
+  [['Med',24],['Den',25],['Vis',26],['Lf',27]].forEach(([label,c])=>sc(wsE.getCell(11,c),label,true,HDR,WHITE,'center'));
+  const medC={EE:0,ES:0,EC:0,EF:0,W:0},denC={EE:0,ES:0,EC:0,EF:0,W:0},visC={EE:0,ES:0,EC:0,EF:0,W:0},lfC={EE:0};
+  members.forEach((r,idx)=>{
+    const row=idx+2;wsE.getRow(row).height=16;
+    const rel=ss(r[col['relationship']??0]).trim();
+    const medT=covERBG(r[col['medicalplan']??17],r[col['medicalplancoverage']??18],r[col['medicaldeclinereason']??19]);
+    const denT=covERBG(r[col['dentalplan']??20],r[col['dentalplancoverage']??21],r[col['dentaldeclinereason']??22]);
+    const visT=covERBG(r[col['visionplan']??23],r[col['visionplancoverage']??24],r[col['visiondeclinereason']??25]);
+    const lfT=ss(r[col['grouplifeplan']??26])?'EE':'';
+    const bg=row%2===0?LBLU:WHITE;
+    if(rel==='Employee'){medC[medT]=(medC[medT]||0)+1;denC[denT]=(denC[denT]||0)+1;visC[visT]=(visC[visT]||0)+1;if(lfT)lfC.EE++;}
+    [r._fid,rel,ss(r[col['lastname']??2]),ss(r[col['firstname']??1]),ss(r[col['sex']??3]),fmtDate(r[col['dob']??4]),medT,denT,visT,lfT,cleanZip(r[col['zip']??14]),'',rel==='Employee'?ss(r[col['jobtitle']??7]):'',rel==='Employee'?(r[col['annualbasesalary']??16]||''):'','N','N'].forEach((v,i)=>sc(wsE.getCell(row,i+1),v,false,bg,'FF000000','left'));
+  });
+  [['EE',12],['ES',13],['EC',14],['EF',15],['Waiving',16],['TOTAL',17]].forEach(([label,row])=>{
+    wsE.getRow(row).height=16;
+    const isTotal=label==='TOTAL';const bg=isTotal?HDR:LBLU;const fc=isTotal?WHITE:'FF000000';
+    sc(wsE.getCell(row,23),label,true,DARK,WHITE,'left');
+    let med=0,den=0,vis=0,lf=0;
+    if(isTotal){med=Object.values(medC).reduce((a,b)=>a+b,0);den=Object.values(denC).reduce((a,b)=>a+b,0);vis=Object.values(visC).reduce((a,b)=>a+b,0);lf=lfC.EE;}
+    else if(label==='Waiving'){med=medC['W']||0;den=denC['W']||0;vis=visC['W']||0;lf=0;}
+    else{med=medC[label]||0;den=denC[label]||0;vis=visC[label]||0;lf=lfC[label]||0;}
+    [[24,med],[25,den],[26,vis],[27,lf]].forEach(([c,v])=>sc(wsE.getCell(row,c),v,isTotal,bg,fc,'center'));
+  });
+  setStep('erbg','done',`${members.length} members`);await sleep(30);
+
+  // ANGLE HEALTH
+  setStep('angle','running');await sleep(30);
+  const wsA=wb.addWorksheet('Angle Health RFP');
+  wsA.views=[{state:'frozen',ySplit:9}];
+  [4,14,16,24,14,16,10,26,38].forEach((w,i)=>wsA.getColumn(i+1).width=w);
+  wsA.mergeCells(1,1,4,2);sc(wsA.getCell(1,1),'Angle\nHealth',true,'FF5B3FA0',WHITE,'center',true,16);
+  wsA.getCell(1,3).value='Instructions:';wsA.getCell(1,3).font=fnt(true,'FF000000',10);
+  ['1. Fill out each row with member information. Columns with "*" must be filled out.','2. Review Information to ensure formatting is followed for all member information','3. Once all member information is entered correctly, save as CSV file and upload to Census section of Quoting Process.'].forEach((txt,i)=>{wsA.mergeCells(i+1,3,i+1,7);wsA.getCell(i+1,3).value=txt;wsA.getCell(i+1,3).font=fnt(false,'FF000000',9);wsA.getCell(i+1,3).alignment=aln('left','middle');});
+  wsA.getCell(1,8).value='Tiers';wsA.getCell(1,8).font=fnt(true,'FF000000',10);
+  [['Employee',1],['Employee+Spouse',2],['Employee+Child(ren)',3],['Employee+Family',4]].forEach(([t,n],i)=>{wsA.getCell(i+1,7).value=String(n);wsA.getCell(i+1,7).font=fnt(false,'FF000000',9);wsA.getCell(i+1,8).value=t;wsA.getCell(i+1,8).font=fnt(false,'FF000000',9);});
+  wsA.mergeCells(2,10,4,11);const nc=wsA.getCell(2,10);nc.value='CARRIER ONLY NEEDS THE ENROLLING POPULATION\nDO NOT ADD WAIVERS';nc.font=fnt(true,RED,10);nc.fill=fillS(SALM);nc.alignment=aln('center','middle',true);nc.border={top:{style:'medium',color:{argb:RED}},bottom:{style:'medium',color:{argb:RED}},left:{style:'medium',color:{argb:RED}},right:{style:'medium',color:{argb:RED}}};
+  wsA.getCell(8,2).value='* denotes required field';wsA.getCell(8,2).font={...fnt(false,'FF000000',9),italic:true};
+  wsA.getRow(9).height=44;
+  [[2,'First Name*'],[3,'Last Name*'],[4,'Relationship*\n(Employee/Spouse/Child)'],[5,'Gender*\n(Female/Male)'],[6,'Date of Birth*\n(MM/DD/YYYY)'],[7,'Zip*'],[8,'Tier*'],[9,'Plan Name']].forEach(([c,label])=>sc(wsA.getCell(9,c),label,true,'FF5B3FA0',WHITE,'center',true));
+  const angleMembers=members.filter(r=>ss(r[col['medicalplan']??17])||ss(r[col['medicalplancoverage']??18]));
+  angleMembers.forEach((r,idx)=>{
+    const row=idx+10;const rel=ss(r[col['relationship']??0]).trim();
+    const covSrc=ss(r[col['medicalplancoverage']??18])||ss(r[col['medicalplan']??17]);
+    const bg=row%2===0?'FFEAE0F5':WHITE;
+    [[2,ss(r[col['firstname']??1])],[3,ss(r[col['lastname']??2])],[4,rel],[5,gFull(r[col['sex']??3])],[6,fmtDate(r[col['dob']??4])],[7,cleanZip(r[col['zip']??14])],[8,angleTier(covSrc)],[9,ss(r[col['medicalplan']??17])]].forEach(([c,v])=>sc(wsA.getCell(row,c),v,false,bg,'FF000000','left'));
+  });
+  setStep('angle','done',`${angleMembers.length} enrollees`);await sleep(30);
+
+  // AETNA
+  setStep('aetna','running');await sleep(30);
+  const wsAe=wb.addWorksheet('Aetna Health RFP');
+  wsAe.views=[{state:'frozen',ySplit:6}];
+  [16,14,12,14,8,12,12,12,18,2,14,24].forEach((w,i)=>wsAe.getColumn(i+1).width=w);
+  wsAe.mergeCells(1,1,1,9);sc(wsAe.getCell(1,1),'Aetna Small Group',true,PURP,WHITE,'center',false,14);wsAe.getRow(1).height=26;
+  wsAe.mergeCells(2,1,2,9);sc(wsAe.getCell(2,1),'Member-Level Census Template',false,PURP,WHITE,'center',false,11);wsAe.getRow(2).height=22;wsAe.getRow(3).height=8;
+  ['Smith','Joseph',60001,'1/1/1970','M','EEOnly','EEOnly','EE','Active'].forEach((v,i)=>{wsAe.getCell(4,i+1).value=v;wsAe.getCell(4,i+1).font={...fnt(false,'FF808080',9),italic:true};});
+  wsAe.mergeCells(5,1,5,9);wsAe.getCell(5,1).value='• Add Subscriber first followed by their dependents    • Legal First and Last Names - Nicknames not accepted';wsAe.getCell(5,1).font=fnt(false,RED,9);wsAe.getCell(5,1).alignment=aln('left','middle');
+  wsAe.getRow(6).height=42;[[1,'Last Name'],[2,'First Name'],[3,'Home Zip Code'],[4,'Date of Birth'],[5,'Gender'],[6,'Medical Tier'],[7,'Dental Tier'],[8,'Member Type'],[9,'Subscriber\nEmployment Status']].forEach(([c,label])=>sc(wsAe.getCell(6,c),label,true,PURP,WHITE,'center',true));
+  wsAe.mergeCells(6,11,6,12);sc(wsAe.getCell(6,11),'Tier Type Key',true,PURP,WHITE,'center');
+  [[7,'ID','Name',true],[8,'EEOnly','Employee Only',false],[9,'EESpOnly','Employee and Spouse',false],[10,'EEChren','EE & Child(ren)',false],[11,'EEFamily','Family',false],[12,'Waive','Waiver',false]].forEach(([row,k,v,bold])=>{wsAe.getCell(row,11).value=k;wsAe.getCell(row,11).font=fnt(bold,'FF000000',9);wsAe.getCell(row,11).border=bdr();if(bold)wsAe.getCell(row,11).fill=fillS(LGRAY);wsAe.getCell(row,12).value=v;wsAe.getCell(row,12).font=fnt(bold,'FF000000',9);wsAe.getCell(row,12).border=bdr();if(bold)wsAe.getCell(row,12).fill=fillS(LGRAY);});
+  wsAe.mergeCells(14,11,14,12);sc(wsAe.getCell(14,11),'Member Type Key',true,PURP,WHITE,'center');
+  [[15,'ID','Name',true],[16,'EE','Employee',false],[17,'SP','Spouse',false],[18,'CH','Child',false]].forEach(([row,k,v,bold])=>{wsAe.getCell(row,11).value=k;wsAe.getCell(row,11).font=fnt(bold,'FF000000',9);wsAe.getCell(row,11).border=bdr();if(bold)wsAe.getCell(row,11).fill=fillS(LGRAY);wsAe.getCell(row,12).value=v;wsAe.getCell(row,12).font=fnt(bold,'FF000000',9);wsAe.getCell(row,12).border=bdr();if(bold)wsAe.getCell(row,12).fill=fillS(LGRAY);});
+  wsAe.mergeCells(20,11,20,12);sc(wsAe.getCell(20,11),'Work Status Key',true,PURP,WHITE,'center');
+  [[21,'ID','Name',true],[22,'Active','Active Employee',false],[23,'COBRA','Cobra Coverage',false],[24,'St Con','State Continuation Coverage',false],[25,'Retiree','Retiree',false]].forEach(([row,k,v,bold])=>{wsAe.getCell(row,11).value=k;wsAe.getCell(row,11).font=fnt(bold,'FF000000',9);wsAe.getCell(row,11).border=bdr();if(bold)wsAe.getCell(row,11).fill=fillS(LGRAY);wsAe.getCell(row,12).value=v;wsAe.getCell(row,12).font=fnt(bold,'FF000000',9);wsAe.getCell(row,12).border=bdr();if(bold)wsAe.getCell(row,12).fill=fillS(LGRAY);});
+  members.forEach((r,idx)=>{
+    const row=idx+7;const rel=ss(r[col['relationship']??0]).trim();const mt=rel==='Employee'?'EE':rel==='Spouse'?'SP':'CH';const bg=row%2===0?LPURP:WHITE;
+    [[1,ss(r[col['lastname']??2])],[2,ss(r[col['firstname']??1])],[3,cleanZip(r[col['zip']??14])],[4,fmtDate(r[col['dob']??4])],[5,ss(r[col['sex']??3])],[6,covAetna(r[col['medicalplan']??17],r[col['medicalplancoverage']??18],r[col['medicaldeclinereason']??19])],[7,covAetna(r[col['dentalplan']??20],r[col['dentalplancoverage']??21],r[col['dentaldeclinereason']??22])],[8,mt],[9,rel==='Employee'?ss(r[col['employmentstatus']??8]):'']].forEach(([c,v])=>sc(wsAe.getCell(row,c),v,false,bg,'FF000000','left'));
+  });
+  setStep('aetna','done',`${members.length} members`);await sleep(30);
+
+  // UHC LF RFP
+  setStep('uhc','running');await sleep(30);
+  const wsU=wb.addWorksheet('UHC LF RFP');
+  wsU.views=[{state:'frozen',ySplit:3}];
+  [12,12,9,16,14,16,8,12,14,10,18,22,18,18,16,12,14,14,14,10,14,24,9].forEach((w,i)=>wsU.getColumn(i+1).width=w);
+  wsU.mergeCells(1,1,1,23);sc(wsU.getCell(1,1),'Employee Information — Quote',true,'FF1F3864',WHITE,'center',false,11);wsU.getRow(1).height=20;
+  wsU.mergeCells(2,1,2,23);sc(wsU.getCell(2,1),'Complete this section for each member. Enter Employee first followed immediately by their dependents.',false,'FF2E5FAC',WHITE,'left',false,9);wsU.getRow(2).height=16;
+  wsU.getRow(3).height=44;
+  ['*Type','Relationship','Zip Code','Last Name','First Name','*Date of Birth\n(MM/DD/YYYY)','*Gender','*Employee Status','Employee Class','Salary','Medical Coverage Type','Medical Waiver Reason','Dental Coverage Type','Vision Coverage Type','Life Coverage Type','*Waive All Products?','Medical Plan','Dental Plan','Vision Plan','*Hours Worked','*Date of Hire\nMM/DD/YYYY','*Address 1','*ZIP'].forEach((label,i)=>sc(wsU.getCell(3,i+1),label,true,HDR,WHITE,'center',true,9));
+  members.forEach((r,idx)=>{
+    const row=idx+4;const rel=ss(r[col['relationship']??0]).trim();const isEmp=rel==='Employee';
+    const[uhcMed,medW]=covUHCMed(r[col['medicalplan']??17],r[col['medicalplancoverage']??18],r[col['medicaldeclinereason']??19]);
+    const uhcDen=covUHCDen(r[col['dentalplan']??20],r[col['dentalplancoverage']??21],r[col['dentaldeclinereason']??22]);
+    const uhcVis=covUHCDen(r[col['visionplan']??23],r[col['visionplancoverage']??24],r[col['visiondeclinereason']??25]);
+    const lfCov=ss(r[col['grouplifeplan']??26])?'Employee Only':'';const bg=row%2===0?LBLU:WHITE;
+    [isEmp?'Employee':'Dependent',isEmp?'':rel,cleanZip(r[col['zip']??14]),ss(r[col['lastname']??2]),ss(r[col['firstname']??1]),fmtDate(r[col['dob']??4]),gFull(r[col['sex']??3]),isEmp?ss(r[col['employmentstatus']??8]):'',isEmp?ss(r[col['class']??6]):'',isEmp?(r[col['annualbasesalary']??16]||''):'',uhcMed,medW,uhcDen,uhcVis,lfCov,uhcMed==='Waive'&&uhcDen==='Waive'?'waive':'',uhcMed==='Waive'?'waive':'',uhcDen==='Waive'?'waive':'',uhcVis==='Waive'?'waive':'','',isEmp?fmtDate(r[col['hiredate']??9]):'N/A',isEmp?ss(r[col['address1']??10]):'',cleanZip(r[col['zip']??14])].forEach((v,i)=>sc(wsU.getCell(row,i+1),v,false,bg,'FF000000','left'));
+  });
+  setStep('uhc','done',`${members.length} members`);await sleep(30);
+
+  // AI ANALYTIC
+  setStep('ai','running');await sleep(30);
+  const wsAI=wb.addWorksheet('AI Analytic Census');
+  wsAI.views=[{state:'frozen',ySplit:2}];
+  [14,16,9,14,10,14,14,28].forEach((w,i)=>wsAI.getColumn(i+1).width=w);
+  wsAI.mergeCells(1,1,1,9);sc(wsAI.getCell(1,1),'AI Analytic Census  —  Medical Enrollees Only (Waivers Excluded)',true,DARK,WHITE,'center',false,12);wsAI.getRow(1).height=24;
+  wsAI.getCell(1,10).value='DO NOT ADD EMPLOYEES THAT ARE WAIVING';wsAI.getCell(1,10).font=fnt(true,RED,9);
+  wsAI.getRow(2).height=22;
+  ['First Name','Last Name','Gender','Date of Birth','Zip Code','Relationship','Coverage Type','Group ID'].forEach((label,i)=>sc(wsAI.getCell(2,i+1),label,true,HDR,WHITE,'center'));
+  const aiMembers=members.filter(r=>ss(r[col['medicalplan']??17])||ss(r[col['medicalplancoverage']??18]));
+  aiMembers.forEach((r,idx)=>{
+    const row=idx+3;const rel=ss(r[col['relationship']??0]).trim();const cov=ss(r[col['medicalplancoverage']??18]);const bg=row%2===0?LBLU:WHITE;
+    [ss(r[col['firstname']??1]),ss(r[col['lastname']??2]),ss(r[col['sex']??3]),fmtDate(r[col['dob']??4]),cleanZip(r[col['zip']??14]),rel,aiTier(cov),coName].forEach((v,i)=>sc(wsAI.getCell(row,i+1),v,false,bg,'FF000000','left'));
+  });
+  setStep('ai','done',`${aiMembers.length} enrollees`);await sleep(30);
+
+  setStep('write','running');await sleep(50);
+  outputBuffer=await wb.xlsx.writeBuffer();
+  setStep('write','done');
+
+  document.getElementById('summaryGrid').innerHTML=[['Employees',empCount],['Dependents',depCount],['Med Enrollees',angleMembers.length],['Total Members',members.length]].map(([l,v])=>`<div class="stat"><div class="stat-label">${l}</div><div class="stat-value">${v}</div></div>`).join('');
+  document.getElementById('summaryCard').classList.add('visible');
+  document.getElementById('runBtn').disabled=false;
+}
+
+function downloadOutput(){
+  if(!outputBuffer)return;
+  const coName=document.getElementById('coName').value.trim().replace(/[^a-z0-9 ]/gi,'_');
+  const blob=new Blob([outputBuffer],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;
+  a.download=`Census_${coName}_${new Date().toISOString().slice(0,10)}.xlsx`;a.click();URL.revokeObjectURL(url);
+}
+</script>
+</body>
+</html>
